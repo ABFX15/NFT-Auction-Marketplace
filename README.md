@@ -1,66 +1,53 @@
-## Foundry
+# NFT Auction Smart Contract
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+A decentralized NFT auction platform built on Ethereum that allows users to create auctions for their NFTs and accept bids from other users.
 
-Foundry consists of:
+## Features
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+- NFT owners can create auctions with custom reserve prices and durations
+- Bidders can place bids on active auctions
+- Automatic refund of outbid amounts
+- Sellers can end auctions early if reserve price is met
+- Built-in security with reentrancy protection
+- Fully tested with Foundry
 
-## Documentation
+## Contract Details
 
-https://book.getfoundry.sh/
+The main contract `AuctionContract.sol` implements the following key functionality:
 
-## Usage
+- `depositNft()`: Create a new auction by depositing an NFT
+- `bid()`: Place a bid on an active auction
+- `finishAuction()`: Complete an auction after time expires
+- `sellerEndAuction()`: Allow seller to end auction early if reserve met
+- `withdraw()`: Withdraw refunded bid amounts
+- `getActiveAuctions()`: View all currently active auctions
 
-### Build
+## Technical Specifications
 
-```shell
-$ forge build
-```
+- Solidity version: 0.8.20
+- Built with OpenZeppelin contracts
+- Implements ERC721 receiver interface
+- Uses ReentrancyGuard for security
+- Comprehensive test suite in Foundry
 
-### Test
+## Security Features
 
-```shell
-$ forge test
-```
+- Reentrancy protection on critical functions
+- Checks-Effects-Interactions pattern
+- Access control via Ownable
+- Minimum auction duration enforcement
+- Safe transfer handling
 
-### Format
+## Testing
 
-```shell
-$ forge fmt
-```
+The contract includes extensive tests covering:
 
-### Gas Snapshots
+- NFT deposits
+- Bidding functionality 
+- Auction completion
+- Withdrawal mechanics
+- Edge cases and security scenarios
 
-```shell
-$ forge snapshot
-```
+Run tests with:
+`forge test`
 
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
