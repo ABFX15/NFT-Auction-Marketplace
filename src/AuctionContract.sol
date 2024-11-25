@@ -9,7 +9,6 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {SellerNFT} from "./SellerNft.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
-
 /**
  * @title AuctionContract
  * @author Adam Crypt0Dev
@@ -30,30 +29,14 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
-    // Event for when an NFT is deposited to the contract 
-    event NFTDeposited(
-        uint256 indexed tokenId,
-        address indexed seller,
-        uint256 reservePrice
-    );
+    // Event for when an NFT is deposited to the contract
+    event NFTDeposited(uint256 indexed tokenId, address indexed seller, uint256 reservePrice);
     // Event for a new bid placed
-    event BidPlaced(
-        uint256 indexed auctionId,
-        address indexed bidder,
-        uint256 bidPrice
-    );
+    event BidPlaced(uint256 indexed auctionId, address indexed bidder, uint256 bidPrice);
     // Event for when an auction ends
-    event AuctionEnded(
-        uint256 indexed auctionId,
-        address indexed winner,
-        uint256 bidPrice
-    );
+    event AuctionEnded(uint256 indexed auctionId, address indexed winner, uint256 bidPrice);
     // Event for when a bid is refunded
-    event bidRefunded(
-        uint256 indexed auctionId,
-        address indexed bidder,
-        uint256 bidPrice
-    );
+    event bidRefunded(uint256 indexed auctionId, address indexed bidder, uint256 bidPrice);
 
     /*//////////////////////////////////////////////////////////////
                             STATE VARIABLES
@@ -97,6 +80,14 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
         _;
     }
 
+    modifier canEndAuction(uint256 auctionId) {
+        NFTAuction storage auction = nftAuctions[auctionId];
+        require(block.timestamp > auction.endTime, "Auction still active");
+        require(msg.sender == auction.seller, "Only seller can end auction");
+        require(!auction.ended, "Auction already ended");
+        _;
+    }
+
     /*//////////////////////////////////////////////////////////////
                             EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -110,21 +101,16 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
      * @notice The contract uses the IERC721Receiver interface to receive the NFT
      * @return The auction ID of the NFT
      */
-    function depositNft(
-        address nftContract,
-        uint256 tokenId,
-        uint256 _reservePrice,
-        uint256 _auctionDuration
-    ) external returns (uint256) {
+    function depositNft(address nftContract, uint256 tokenId, uint256 _reservePrice, uint256 _auctionDuration)
+        external
+        returns (uint256)
+    {
         if (_auctionDuration < MIN_AUCTION_DURATION) {
             revert NFTAuction__AuctionDurationTooShort();
         }
         IERC721 nft = IERC721(nftContract);
         require(nft.ownerOf(tokenId) == msg.sender, "You don't own this NFT");
-        require(
-            nft.getApproved(tokenId) == address(this),
-            "Auction not approved"
-        );
+        require(nft.getApproved(tokenId) == address(this), "Auction not approved");
         nft.transferFrom(msg.sender, address(this), tokenId);
 
         uint256 auctionId = nftAuctions.length;
@@ -152,34 +138,23 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
      * @notice The contract uses the nonReentrant modifier to prevent reentrancy attacks
      * @notice The contract uses the auctionActive modifier to check if the auction is active
      */
-    function bid(
-        uint256 auctionId
-    )
-        external
-        payable
-        nonReentrant
-        auctionActive(auctionId)
-    {
+    function bid(uint256 auctionId) external payable nonReentrant auctionActive(auctionId) {
         NFTAuction storage auction = nftAuctions[auctionId];
 
         if (auction.highestBidder != address(0) && msg.value <= auction.bidPrice) {
-        revert NFTAuction__BidTooLow();
+            revert NFTAuction__BidTooLow();
         }
 
         // Then check reserve price
         if (msg.value < auction.reservePrice) {
             revert NFTAuction__ReservePriceNotMet();
-        }  
+        }
 
         if (auction.highestBidder != address(0)) {
             balances[auction.highestBidder] += auction.bidPrice;
             emit bidRefunded(auctionId, auction.highestBidder, auction.bidPrice);
 
-            emit bidRefunded(
-                auctionId,
-                auction.highestBidder,
-                auction.bidPrice
-            );
+            emit bidRefunded(auctionId, auction.highestBidder, auction.bidPrice);
         }
 
         auction.highestBidder = msg.sender;
@@ -194,11 +169,7 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
      * @notice The contract uses the nonReentrant modifier to prevent reentrancy attacks
      * @notice The contract uses the auctionActive modifier to check if the auction is active
      */
-    function sellerEndAuction(uint256 auctionId) 
-        external 
-        nonReentrant 
-        auctionActive(auctionId) 
-    {
+    function sellerEndAuction(uint256 auctionId) external nonReentrant canEndAuction(auctionId) {
         NFTAuction storage auction = nftAuctions[auctionId];
         if (auction.bidPrice < auction.reservePrice) {
             revert NFTAuction__ReservePriceNotMet();
@@ -208,11 +179,7 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
         uint256 sellerEth = auction.bidPrice;
         payable(auction.seller).transfer(sellerEth);
 
-        IERC721(auction.nftContract).safeTransferFrom(
-            address(this),
-            auction.highestBidder,
-            auction.tokenId
-        );
+        IERC721(auction.nftContract).safeTransferFrom(address(this), auction.highestBidder, auction.tokenId);
 
         emit AuctionEnded(auctionId, auction.highestBidder, auction.bidPrice);
     }
@@ -221,11 +188,7 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
      * @notice returns the active auctions
      * @return activeAuctions
      */
-    function getActiveAuctions() 
-        public 
-        view 
-        returns (uint256[] memory) 
-    {
+    function getActiveAuctions() public view returns (uint256[] memory) {
         uint256[] memory activeAuctions = new uint256[](nftAuctions.length);
         uint256 count = 0;
         for (uint256 i = 0; i < nftAuctions.length; i++) {
@@ -246,7 +209,7 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
             revert NFTAuction__NotEnoughFundsToWithdraw();
         }
         balances[msg.sender] = 0;
-        (bool success, ) = msg.sender.call{value: amount}("");
+        (bool success,) = msg.sender.call{value: amount}("");
         if (!success) {
             revert NFTAuction__TransferFailed();
         }
@@ -258,15 +221,10 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
     /**
      * @notice ERC721 onReceived function
      */
-    function onERC721Received(
-        address,
-        address,
-        uint256,
-        bytes memory
-    ) public virtual override returns (bytes4) {
+    function onERC721Received(address, address, uint256, bytes memory) public virtual override returns (bytes4) {
         return this.onERC721Received.selector;
     }
-    
+
     /**
      * @notice returns the NFT auction
      */

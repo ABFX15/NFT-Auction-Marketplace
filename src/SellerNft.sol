@@ -22,7 +22,7 @@ contract SellerNFT is ERC721, Ownable {
 
     function mint(address to) external returns (uint256) {
         uint256 tokenId = tokenCounter;
-        tokenCounter ++;
+        tokenCounter++;
         _safeMint(to, tokenId);
         return tokenId;
     }

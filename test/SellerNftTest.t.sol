@@ -18,8 +18,8 @@ contract SellerNftTest is Test {
         auctionContract = new AuctionContract();
     }
 
-    function testMint() public {    
-        uint256 tokenCounterId = sellerNft.getTokenCounter();    
+    function testMint() public {
+        uint256 tokenCounterId = sellerNft.getTokenCounter();
         vm.prank(USER);
         uint256 mintedNft = sellerNft.mint(USER);
         assertEq(mintedNft, tokenCounterId);
@@ -43,6 +43,4 @@ contract SellerNftTest is Test {
         vm.expectRevert("SellerNFT: not owner of token");
         sellerNft.approveToAuction(address(auctionContract), mintNft);
     }
-
-    
 }
