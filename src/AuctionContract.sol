@@ -79,7 +79,7 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
     // Modifier to check if the auction is active
     modifier auctionActive(uint256 auctionId) {
         NFTAuction storage auction = nftAuctions[auctionId];
-        if (block.timestamp > auction.endTime) { 
+        if (block.timestamp > auction.endTime) {
             revert NFTAuction__AuctionEnded();
         }
         if (msg.sender == auction.seller) {
@@ -234,7 +234,6 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
         if (!success) {
             revert NFTAuction__TransferFailed();
         }
-
     }
 
     fallback() external payable {}
