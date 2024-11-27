@@ -25,6 +25,8 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
     error NFTAuction__NotEnoughFundsToWithdraw();
     error NFTAuction__TransferFailed();
     error NFTAuction__BidTooLow();
+    error NFTAuction__AuctionEnded();
+    error NFTAuction__SellerCannotBid();
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -44,6 +46,8 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
     // Seller can choose the duration of the auction
     uint256 public constant MIN_AUCTION_DURATION = 1 hours;
     uint256 public constant MAX_AUCTION_DURATION = 30 days;
+    uint256 public constant MIN_BID_PRICE = 0.01 ether;
+    uint256 public constant MIN_BID_INCREMENT = 0.01 ether;
 
     /*//////////////////////////////////////////////////////////////
                                FUNCTIONS
@@ -75,8 +79,12 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
     // Modifier to check if the auction is active
     modifier auctionActive(uint256 auctionId) {
         NFTAuction storage auction = nftAuctions[auctionId];
-        require(block.timestamp <= auction.endTime, "Auction ended");
-        require(msg.sender != auction.seller, "Seller cannot bid");
+        if (block.timestamp > auction.endTime) { 
+            revert NFTAuction__AuctionEnded();
+        }
+        if (msg.sender == auction.seller) {
+            revert NFTAuction__SellerCannotBid();
+        }
         _;
     }
 
@@ -122,7 +130,7 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
                 highestBidder: address(0),
                 bidPrice: 0,
                 startTime: block.timestamp,
-                endTime: block.timestamp + 1 days,
+                endTime: block.timestamp + _auctionDuration,
                 ended: false,
                 nftContract: nftContract
             })
@@ -139,21 +147,25 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
      * @notice The contract uses the auctionActive modifier to check if the auction is active
      */
     function bid(uint256 auctionId) external payable nonReentrant auctionActive(auctionId) {
+        require(auctionId < nftAuctions.length, "Invalid auction ID");
         NFTAuction storage auction = nftAuctions[auctionId];
 
-        if (auction.highestBidder != address(0) && msg.value <= auction.bidPrice) {
-            revert NFTAuction__BidTooLow();
+        // If there's an existing bid, new bid must be at least MIN_BID_INCREMENT more
+        if (auction.highestBidder != address(0)) {
+            uint256 minValidBid = auction.bidPrice + MIN_BID_INCREMENT;
+            if (msg.value < minValidBid) {
+                revert NFTAuction__BidTooLow();
+            }
+        } else {
+            // For first bid, just check reserve price
+            if (msg.value < auction.reservePrice) {
+                revert NFTAuction__ReservePriceNotMet();
+            }
         }
 
-        // Then check reserve price
-        if (msg.value < auction.reservePrice) {
-            revert NFTAuction__ReservePriceNotMet();
-        }
-
+        // Refund the previous highest bidder
         if (auction.highestBidder != address(0)) {
             balances[auction.highestBidder] += auction.bidPrice;
-            emit bidRefunded(auctionId, auction.highestBidder, auction.bidPrice);
-
             emit bidRefunded(auctionId, auction.highestBidder, auction.bidPrice);
         }
 
@@ -189,7 +201,16 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
      * @return activeAuctions
      */
     function getActiveAuctions() public view returns (uint256[] memory) {
-        uint256[] memory activeAuctions = new uint256[](nftAuctions.length);
+        // count active auctions
+        uint256 activeCount = 0;
+        for (uint256 i = 0; i < nftAuctions.length; i++) {
+            if (!nftAuctions[i].ended) {
+                activeCount++;
+            }
+        }
+
+        // create array of exact size needed
+        uint256[] memory activeAuctions = new uint256[](activeCount);
         uint256 count = 0;
         for (uint256 i = 0; i < nftAuctions.length; i++) {
             if (!nftAuctions[i].ended) {
@@ -213,6 +234,7 @@ contract AuctionContract is Ownable, ReentrancyGuard, IERC721Receiver {
         if (!success) {
             revert NFTAuction__TransferFailed();
         }
+
     }
 
     fallback() external payable {}
